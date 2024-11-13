@@ -1,0 +1,4 @@
+Data Preparation
+
+input:   all the data files
+output:  data files of the same length that capture the actual activities performed
