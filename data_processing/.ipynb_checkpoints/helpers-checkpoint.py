@@ -90,13 +90,13 @@ def filter_signal(b, a, signal, filter):
 
 def compute_fft_mag(data):
     fftpoints = int(math.pow(2, math.ceil(math.log2(len(data)))))
-    #print(fftpoints)
     fft = np.fft.fft(data, n=fftpoints)
-    mag = np.abs(fft) / (fftpoints/2)
+    mag = np.abs(fft) / (fftpoints/2) # check this
     return mag.tolist()
 
 
 def fft_graph_values(fft_mags, sample_rate):
+    print(len(fft_mags), len(fft_mags)//2)
     T = 1/sample_rate
     N_r =len(fft_mags)//2
     x = np.linspace(0.0, 1.0/(2.0*T), len(fft_mags)//2).tolist()
@@ -147,6 +147,7 @@ def compute_loading_intensity(fft_magnitudes, sampling_frequency, high_cut_off):
 
 
 # computes the total skeletal loading (assumes df columns as input)
+
 def compute_skeletal_loading(accel_x, accel_y, accel_z, sampling_rate, lc_off, hc_off, filter_order, filter_type):
     # build the filter
     b,a = build_filter((lc_off, hc_off), sampling_rate, filter_type, filter_order)
@@ -161,6 +162,7 @@ def compute_skeletal_loading(accel_x, accel_y, accel_z, sampling_rate, lc_off, h
     filtered_mag = filter_signal(b,a, a_mag, "filtfilt")
     # compute the frequency response
     fft_mag = compute_fft_mag(filtered_mag)
+    #fft_graph = compute_frequency_response(df, sampling_rate, b,a )
     # compute the loading intensity
     li_result = compute_loading_intensity(fft_mag, sampling_rate, hc_off)
         
