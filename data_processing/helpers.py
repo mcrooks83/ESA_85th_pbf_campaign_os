@@ -96,7 +96,6 @@ def compute_fft_mag(data):
 
 
 def fft_graph_values(fft_mags, sample_rate):
-    print(len(fft_mags), len(fft_mags)//2)
     T = 1/sample_rate
     N_r =len(fft_mags)//2
     x = np.linspace(0.0, 1.0/(2.0*T), len(fft_mags)//2).tolist()
