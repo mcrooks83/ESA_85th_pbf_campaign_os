@@ -121,6 +121,20 @@ def compute_frequency_response(df, sampling_rate, b,a ):
     graph = fft_graph_values(fft_mag, sampling_rate)
     return graph
 
+# axis is a string either "Acc_X" "Acc_Y" "Acc_Z"
+def compute_frequency_response_of_axis(df, axis, sampling_rate, b,a):
+
+    # data is a df
+    a_axis = df[axis]
+
+    a_axis = a_axis.to_numpy()  / 9.80665
+    
+    filtered_a = filter_signal(b,a, a_axis, "filtfilt")
+    
+    fft_mag = compute_fft_mag(filtered_a)
+    graph = fft_graph_values(fft_mag, sampling_rate)
+    return graph
+
 def compute_power_spectrum(fft_mag):
     power = np.square(fft_mag)
     return power
