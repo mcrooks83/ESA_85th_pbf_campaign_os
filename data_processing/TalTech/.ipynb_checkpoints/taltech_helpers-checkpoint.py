@@ -1,7 +1,7 @@
 from __future__ import division
 import pandas as pd
 import numpy as np
-from scipy.signal import medfilt, butter, filtfilt, lfilter, find_peaks, find_peaks_cwt,resample, detrend
+from scipy.signal import medfilt, butter, filtfilt, lfilter, sosfiltfilt, find_peaks, find_peaks_cwt,resample, detrend
 import logging
 import math
 import time
@@ -77,7 +77,6 @@ def compute_fft_mag(data):
     fft = np.fft.fft(data, n=fftpoints)
     mag = np.abs(fft) / (fftpoints/2) # check this
     return mag.tolist()
-
 
 def fft_graph_values(fft_mags, sample_rate):
     T = 1/sample_rate
