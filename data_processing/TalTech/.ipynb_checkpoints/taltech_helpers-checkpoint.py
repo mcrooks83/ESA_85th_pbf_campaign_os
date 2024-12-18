@@ -10,6 +10,80 @@ import json
 from datetime import datetime, timedelta
 import os, sys
 import glob
+from scipy.signal import stft, spectrogram, get_window
+
+def build_filter(frequency, sample_rate, filter_type, filter_order, sos=False):
+    #nyq = 0.5 * sample_rate
+    if filter_type == "band":
+        if(sos):
+            sos =  butter(filter_order, (frequency[0], frequency[1]), btype=filter_type, analog=False, output='sos', fs=sample_rate)
+            return sos
+        else:
+            #nyq_cutoff = (frequency[0] / nyq, frequency[1] / nyq)
+            b, a = butter(filter_order, (frequency[0], frequency[1]), btype=filter_type, analog=False, output='ba', fs=sample_rate)
+            return b,a
+    elif filter_type == "low":
+        #nyq_cutoff = frequency[1] / nyq
+        b, a = butter(filter_order, frequency[1], btype=filter_type, analog=False, output='ba', fs=sample_rate)
+        return b,a
+    elif filter_type == "high":
+        #nyq_cutoff = frequency[0] / nyq
+        b, a = butter(filter_order, frequency[0], btype=filter_type, analog=False, output='ba', fs=sample_rate)
+        return b,a
+
+
+def filter_signal_by_sos(sos, signal):
+    return sosfiltfilt(sos, signal)
+
+
+def condition_an_axis(signal_df, f_params):
+    #convert to numpy array
+    s = signal_df.to_numpy()
+    # filter the signal
+    sos = build_filter((f_params["lc_off"], f_params["hc_off"]), 
+                       f_params["sampling_rate"],
+                       f_params["filter_type"], f_params["filter_order"], 
+                       sos=True)
+    s_filtered = filter_signal_by_sos(sos, s)
+    # remove the median
+    median_value = np.median(s_filtered)
+    signal_centered = s_filtered - median_value
+    return signal_centered
+
+def condition_magnitude(x,y,z, f_params):
+
+    mag = vector_magnitude([x, y, z])
+    # filter the signal
+    sos = build_filter((f_params["lc_off"], f_params["hc_off"]), 
+                       f_params["sampling_rate"],
+                       f_params["filter_type"], f_params["filter_order"], 
+                       sos=True)
+    filtered_mag = filter_signal_by_sos(sos, mag)
+    # remove the median
+    median_value = np.median(filtered_mag)
+    signal_centered = filtered_mag - median_value
+    return signal_centered
+
+def compute_hf_vibration_signal(df, f_params, use_mag=False):
+    a_x = df["X"]
+    a_y = df["Y"]
+    a_z = df["Z"]
+
+    if(use_mag):
+        accel_x = a_x.to_numpy()  
+        accel_y = a_y.to_numpy()  
+        accel_z = a_z.to_numpy()  
+    
+        # not use the magnitue - introduces noise
+        mag = condition_magnitude(accel_x, accel_y, accel_z, f_params)
+        
+        return mag
+    else:
+        x_conditioned = condition_an_axis(a_x, f_params)
+        y_conditioned = condition_an_axis(a_y, f_params)
+        z_conditioned = condition_an_axis(a_z, f_params)
+
+        return [x_conditioned, y_conditioned, z_conditioned]
 
 def read_in_clean_taltech_data(base):
     print(f"reading taltech data files from {base}")
@@ -38,7 +112,9 @@ def read_in_clean_taltech_data(base):
                 fw_path = f"{exp_path}/{f}/*.csv"
     
                 for file_path in glob.glob(fw_path):
-                    f_name = file_path.split("\\")[1].split(".")[0]
+                    #print(file_path)
+                    #print(file_path.split("/"))
+                    f_name = file_path.split("/")[9].split(".")[0]
                     data[env][e][f][f_name] = pd.read_csv(file_path)
     return data
 
@@ -47,21 +123,6 @@ def vector_magnitude(vectors):
     assert all(len(v) == n for v in vectors), "Vectors have different lengths"
     vm = np.sqrt(sum(v ** 2 for v in vectors))
     return vm
-
-def build_filter(frequency, sample_rate, filter_type, filter_order):
-    #nyq = 0.5 * sample_rate
-    if filter_type == "band":
-        #nyq_cutoff = (frequency[0] / nyq, frequency[1] / nyq)
-        b, a = butter(filter_order, (frequency[0], frequency[1]), btype=filter_type, analog=False, output='ba', fs=sample_rate)
-    elif filter_type == "low":
-        #nyq_cutoff = frequency[1] / nyq
-        b, a = butter(filter_order, frequency[1], btype=filter_type, analog=False, output='ba', fs=sample_rate)
-    elif filter_type == "high":
-        #nyq_cutoff = frequency[0] / nyq
-        b, a = butter(filter_order, frequency[0], btype=filter_type, analog=False, output='ba', fs=sample_rate)
-
-    return b, a
-
 
 def filter_signal(b, a, signal, filter):
     if(filter=="lfilter"):
@@ -118,9 +179,23 @@ def compute_frequency_response_of_axis(df, axis, sampling_rate, b,a):
     graph = fft_graph_values(fft_mag, sampling_rate)
     return graph
 
+
+#some more helpers
 def compute_power_spectrum(fft_mag):
     power = np.square(fft_mag)
     return power
+
+# power spectrum in decibels.
+def compute_power(Zxx):
+    pwr = np.abs(Zxx)**2
+    p_Zxx = 10 * np.log10(np.abs(Zxx) ** 2)
+    #p_Zxx = 10 * np.log10(pwr+ 1e-20) # add small value to avoid divide by zero
+    return p_Zxx
+
+def compute_stft(signal, fs, window, seg_len, overlap, nfft):
+    f, t, Zxx = stft(signal, fs=fs, window=window,  nperseg=seg_len, noverlap=overlap, nfft=nfft)
+    p_Zxx = compute_power(Zxx)
+    return [f,t,p_Zxx]
 
 # computes the actual loading value
 def compute_loading_intensity(fft_magnitudes, sampling_frequency, high_cut_off):
